@@ -79,6 +79,10 @@ for i in range(0, real_image_links.__len__()):
     tmp_real = real_image.split("/")
     # the second to last index happens to be some kind of internal ID, so we use that
     real_filename = tmp_real[tmp_real.__len__() - 2]
+    # this might fix something? test later
+    # real_filename = real_filename.split("?")[0]
+    
+    
     # the last index is the filename (original.jpg),
     # then split that at period and index 1 is extension
     real_ext = tmp_real[tmp_real.__len__() - 1].split(".")[1]
