@@ -10,107 +10,94 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-
-from selenium import webdriver
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.firefox.service import Service
+from urllib.error import HTTPError
 import os
+import sys
 import urllib.request
+import requests
+import bs4
+from pathlib import Path
 
-options = Options()
-options.headless = True  # headless
-options.add_argument("--enable-automation")  # automation!!!!
-options.add_argument("--disable-logging")  # disable logging
 
 name = input("Enter weheartit username\n>")
 
-print("Connecting....")
-# url to user's first page of uploads
-url = "https://weheartit.com/" + name + "/uploads?page=1"
+base_url = f"https://weheartit.com/{name}/uploads?date=&order=&utf8=✓&query=&unhearts=include&page="
 
-# load driver and get going
-driver = webdriver.Firefox(options=options)
-driver.get(url)
+print("Connecting....")
 
 # attempt to make directory
+path = os.path.join(os.getcwd(), name)
 try:
-    os.mkdir(os.getcwd() + "/" + name)
+    os.mkdir(path)
 except FileExistsError:
     print("directory already exists, continuing...")
 except IOError:
     # dumbass gimme permission
-    print("there was an error writing to " + os.getcwd())
-    os.sys.exit(-1)
+    print(f"there was an error writing to {path}")
+    sys.exit(-1)
 # info print
-print("using directory " + os.getcwd() + "/" + name)
+print(f"using directory {path}")
 
-# default pages has to be 1
-pages = 1
-try:
-    # try to find pages element
-    pages = driver.find_element_by_css_selector(
-        "span.js-pagination-counter-total").text.split(" ")[1]
-    print("pages: " + pages)
-except:
-    # if doesn't exist, keep her going
-    print("there is no more than 1 page, or this shit just borked.")
-
-# url structure for uploads without page
-newurl = "https://weheartit.com/" + name + "/uploads?page="
-# list of direct image links :)
-real_image_links = []
+# image IDs are same in CDN and whi.com/entry/{id} links, so it makes it really easy to store 
+image_ids: list[str] = []
 print("\
 -------------------------------------------\n\
 --------------grab image links-------------\n\
 -------------------------------------------")
+      
+page = 1
 # for each page in pages, plus one since it excludes the last one
-for i in range(1, int(pages)+1):
-    print("page " + str(i) + "...")
+while True:
     # get site at that page
-    driver.get(newurl + str(i))
-    # select element a.js-download-image <a class="js-download-image">
-    imageurls = driver.find_elements_by_css_selector("a.js-download-image")
+    response = requests.get(f"{base_url}{page}")
+    soup: bs4.PageElement = bs4.BeautifulSoup(response.content, 'html.parser')
+    imageurls: list[bs4.PageElement] = soup.select('div.entry-preview>a.js-entry-detail-link')
+    if len(imageurls) == 0:
+        break
+    print(f"---------- page {page} ----------")
     # for each item in that class
     for item in imageurls:
-        # get the href (link to the image)
-        img = item.get_attribute("href")
+        # get the href /entry/{id}
+        img = item['href']
         print(img)
         if img == None:
             continue
         else:
-            # add to image links list if it exists
-            real_image_links.append(str(img))
-print("-------------------------------------------")
-
-
-print("-------------------------------------------")
+            # the reason we add an image id to the list instead of the href itself is
+            #   because the ID will be used later as a filename
+            image_ids.append(str(img).split('/')[-1])
+    page += 1
+print("-----------------------------")
+if len(image_ids) == 0:
+    print("no uploads found")
+    sys.exit(0)
+print()
 # for each direct image link
-for i in range(0, real_image_links.__len__()):
-    # get a url
-    real_image = real_image_links[i]
-    # split it at the forward slashes
-    tmp_real = real_image.split("/")
-    # the second to last index happens to be some kind of internal ID, so we use that
-    real_filename = tmp_real[tmp_real.__len__() - 2]
+for i, image_id in enumerate(image_ids):
+    print(i)
+    # check if file exists
+    if len(list(Path(path).glob(f'{image_id}.*'))) != 0:
+        print(f'\t{image_id} exists')
+        continue
+        
+    entry = f"https://weheartit.com/entry/{image_id}"
+    # gather CDN url for the original image
+    resp = requests.get(entry)
+    image_url = bs4.BeautifulSoup(resp.content, 'html.parser').select_one('img.entry-image[src*="original"]')['src']
+    # extension is last element in image_url which looks like this:
+    #   https://data.whicdn.com/images/{id}/original.jpg
+    ext = image_url.split('.')[-1]
     # this might fix something? test later
-    # real_filename = real_filename.split("?")[0]
-    
-    
-    # the last index is the filename (original.jpg),
-    # then split that at period and index 1 is extension
-    real_ext = tmp_real[tmp_real.__len__() - 1].split(".")[1]
-
-    print(str(i) + "\tReal image:\t" + real_image)
-    print("\tExtracted name:\t" + real_filename)
     try:
         # try to save at file path
-        filepath = os.getcwd() + "/" + name + "/" + real_filename + "." + real_ext
-        urllib.request.urlretrieve(real_image, filepath)
-        print("saved " + filepath)
-    except FileExistsError:
-        # already exists so continue
-        print(str(i) + "\tfile already exists")
-    except IOError:
-        # io error bruh fix yo shit
-        print(str(i) + "\tthere was an error writing to " + filepath)
-        os.sys.exit(2)
+        filepath = os.path.join(path, f"{image_id}.{ext}")
+        if not os.path.exists(filepath):
+            _, message = urllib.request.urlretrieve(image_url, filepath)
+            print(f"\tsaved {filepath}")
+        # if the filepath exists, then 
+        else:
+            print("\tdidn't detect entry as existing before now")
+            print(entry)
+    except HTTPError:
+        print(f"{message}")
+
