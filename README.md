@@ -2,8 +2,7 @@
 Scrapes all images uploaded by the user of your choice
 
 ## Requirements
- * selenium `pip install selenium`
- * firefox (geckodriver)
+ * bs4 `pip install bs4`
 
 ## Usage
  1. do `python whi_scraper.py`
@@ -13,5 +12,4 @@ Scrapes all images uploaded by the user of your choice
 
 ## TODO
 * argparse so it's not actual shit to use
-* use bs4, selenium is unecessary.
-  * why automate browser instead of scraping???
+* proxylist support
