@@ -1,4 +1,9 @@
-# We Heart It User Uploads Scraper
+# weheartit removed their website...?
+not sure why, i guess they didn't like people using it on their computer :)
+
+time to make something crazy i guess
+
+## We Heart It User Uploads Scraper
 Scrapes all images uploaded by the user of your choice
 
 ## Requirements
